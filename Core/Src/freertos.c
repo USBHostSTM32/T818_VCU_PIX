@@ -152,6 +152,7 @@ void StartCanTask(void const * argument)
   /* USER CODE BEGIN StartCanTask */
 	//Init CAN module
 	CANSPI_Initialize();
+	uCAN_MSG tx_msg;
 	//End init CAN module
 	TickType_t xLastWakeTime;
 	const TickType_t xFrequency = pdMS_TO_TICKS(CAN_TASK_PERIOD_MS); //TASK PERIOD
