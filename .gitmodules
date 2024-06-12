@@ -1,0 +1,3 @@
+[submodule "CommonDrivers"]
+	path = CommonDrivers
+	url = https://github.com/USBHostSTM32/CommonDrivers.git

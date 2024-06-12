@@ -26,6 +26,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "CANSPI.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,7 +36,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define CAN_TASK_PERIOD_MS                   	(20U)
+#define CAN_TASK_PERIOD_MS                   	(100U)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -141,6 +142,7 @@ void StartDefaultTask(void const * argument)
 }
 
 /* USER CODE BEGIN Header_StartCanTask */
+uint8_t can_tx_status=10;
 /**
 * @brief Function implementing the canTask thread.
 * @param argument: Not used
@@ -151,8 +153,23 @@ void StartCanTask(void const * argument)
 {
   /* USER CODE BEGIN StartCanTask */
 	//Init CAN module
-	CANSPI_Initialize();
-	uCAN_MSG tx_msg;
+	if(CANSPI_Initialize() == false){
+		Error_Handler();
+	}
+	uCAN_MSG txMessage;
+	memset(&txMessage, 0x00U, sizeof(txMessage));
+    txMessage.frame.idType = dSTANDARD_CAN_MSG_ID_2_0B;
+    txMessage.frame.id = 0x0A;
+    txMessage.frame.dlc = 8;
+    txMessage.frame.data0 = 0;
+    txMessage.frame.data1 = 1;
+    txMessage.frame.data2 = 2;
+    txMessage.frame.data3 = 3;
+    txMessage.frame.data4 = 4;
+    txMessage.frame.data5 = 5;
+    txMessage.frame.data6 = 6;
+    txMessage.frame.data7 = 7;
+
 	//End init CAN module
 	TickType_t xLastWakeTime;
 	const TickType_t xFrequency = pdMS_TO_TICKS(CAN_TASK_PERIOD_MS); //TASK PERIOD
@@ -162,6 +179,7 @@ void StartCanTask(void const * argument)
 	for(;;)
 	{
 	  vTaskDelayUntil(&xLastWakeTime, xFrequency);
+	  can_tx_status = CANSPI_Transmit(&txMessage);
 	}
   /* USER CODE END StartCanTask */
 }
