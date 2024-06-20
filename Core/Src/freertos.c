@@ -25,8 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "CANSPI.h"
-#include <string.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,7 +35,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define CAN_TASK_PERIOD_MS                   	(100U)
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -49,9 +48,9 @@
 
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
-osThreadId canTaskHandle;
-uint32_t canTaskBuffer[ 128 ];
-osStaticThreadDef_t canTaskControlBlock;
+osThreadId updateStateTaskHandle;
+uint32_t updateStateTaskBuffer[ 1024 ];
+osStaticThreadDef_t updateStateTaskControlBlock;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -59,7 +58,7 @@ osStaticThreadDef_t canTaskControlBlock;
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
-void StartCanTask(void const * argument);
+void StartUpdateStateTask(void const * argument);
 
 extern void MX_USB_HOST_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
@@ -111,9 +110,9 @@ void MX_FREERTOS_Init(void) {
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
-  /* definition and creation of canTask */
-  osThreadStaticDef(canTask, StartCanTask, osPriorityRealtime, 0, 128, canTaskBuffer, &canTaskControlBlock);
-  canTaskHandle = osThreadCreate(osThread(canTask), NULL);
+  /* definition and creation of updateStateTask */
+  osThreadStaticDef(updateStateTask, StartUpdateStateTask, osPriorityRealtime, 0, 1024, updateStateTaskBuffer, &updateStateTaskControlBlock);
+  updateStateTaskHandle = osThreadCreate(osThread(updateStateTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -141,50 +140,26 @@ void StartDefaultTask(void const * argument)
   /* USER CODE END StartDefaultTask */
 }
 
-/* USER CODE BEGIN Header_StartCanTask */
-uint8_t can_tx_status=10;
+/* USER CODE BEGIN Header_StartUpdateStateTask */
 /**
-* @brief Function implementing the canTask thread.
+* @brief Function implementing the updateStateTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartCanTask */
-void StartCanTask(void const * argument)
+/* USER CODE END Header_StartUpdateStateTask */
+void StartUpdateStateTask(void const * argument)
 {
-  /* USER CODE BEGIN StartCanTask */
-	//Init CAN module
-	if(CANSPI_Initialize() == false){
-		Error_Handler();
-	}
-	uCAN_MSG txMessage;
-	memset(&txMessage, 0x00U, sizeof(txMessage));
-    txMessage.frame.idType = dSTANDARD_CAN_MSG_ID_2_0B;
-    txMessage.frame.id = 0x0A;
-    txMessage.frame.dlc = 8;
-    txMessage.frame.data0 = 0;
-    txMessage.frame.data1 = 1;
-    txMessage.frame.data2 = 2;
-    txMessage.frame.data3 = 3;
-    txMessage.frame.data4 = 4;
-    txMessage.frame.data5 = 5;
-    txMessage.frame.data6 = 6;
-    txMessage.frame.data7 = 7;
-
-	//End init CAN module
-	TickType_t xLastWakeTime;
-	const TickType_t xFrequency = pdMS_TO_TICKS(CAN_TASK_PERIOD_MS); //TASK PERIOD
-	// Initialize xLastWakeTime with the current time
-	xLastWakeTime = xTaskGetTickCount();
-	/* Infinite loop */
-	for(;;)
-	{
-	  vTaskDelayUntil(&xLastWakeTime, xFrequency);
-	  can_tx_status = CANSPI_Transmit(&txMessage);
-	}
-  /* USER CODE END StartCanTask */
+  /* USER CODE BEGIN StartUpdateStateTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartUpdateStateTask */
 }
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 
 /* USER CODE END Application */
+

@@ -31,8 +31,8 @@
 #include <string.h>
 #include "main.h"
 
-#include "stm32f4xx.h"
-#include "stm32f4xx_hal.h"
+#include "stm32f7xx.h"
+#include "stm32f7xx_hal.h"
 
 /* USER CODE BEGIN INCLUDE */
 
@@ -83,7 +83,7 @@
 #define USBH_MAX_DATA_BUFFER      512U
 
 /*----------   -----------*/
-#define USBH_DEBUG_LEVEL      0U
+#define USBH_DEBUG_LEVEL      3U
 
 /*----------   -----------*/
 #define USBH_USE_OS      1U
@@ -95,7 +95,7 @@
 
 #if (USBH_USE_OS == 1)
   #include "cmsis_os.h"
-  #define USBH_PROCESS_PRIO          osPriorityRealtime
+  #define USBH_PROCESS_PRIO          osPriorityNormal
   #define USBH_PROCESS_STACK_SIZE    ((uint16_t)128)
 #endif /* (USBH_USE_OS == 1) */
 
@@ -146,7 +146,7 @@
 
 #if (USBH_DEBUG_LEVEL > 2U)
 #define  USBH_DbgLog(...)   do { \
-                            printf("DEBUG : "); \
+                            printf("ERROR: "); \
                             printf(__VA_ARGS__); \
                             printf("\n"); \
 } while (0)
