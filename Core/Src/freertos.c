@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "t818_drive_control.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,7 +35,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define UPDATE_STATE_PERIOD_MS                   	(20U)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,7 +45,14 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
+extern USBH_HandleTypeDef hUsbHostFS;
 
+// Declaration and configurations
+static t818_drive_control_t drive_control;
+
+static const t818_drive_control_config_t t818_config = {
+		.t818_host_handle = &hUsbHostFS
+};
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 osThreadId updateStateTaskHandle;
@@ -150,10 +157,23 @@ void StartDefaultTask(void const * argument)
 void StartUpdateStateTask(void const * argument)
 {
   /* USER CODE BEGIN StartUpdateStateTask */
+	const TickType_t xFrequency = pdMS_TO_TICKS(UPDATE_STATE_PERIOD_MS); //TASK PERIOD
+	TickType_t xLastWakeTime;
+
+
+	if(t818_drive_control_init(&drive_control, &t818_config, USBH_HID_T818GetInstance())!=T818_DC_OK){
+		 Error_Handler();
+	 }
+
+	// Initialize xLastWakeTime with the current time
+	xLastWakeTime = xTaskGetTickCount();
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+	  vTaskDelayUntil(&xLastWakeTime, xFrequency);
+	  if(t818_drive_control_update(&drive_control) != T818_DC_OK){
+		  Error_Handler();
+	  }
   }
   /* USER CODE END StartUpdateStateTask */
 }
