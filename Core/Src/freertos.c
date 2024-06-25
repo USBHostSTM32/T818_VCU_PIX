@@ -26,6 +26,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "t818_drive_control.h"
+#include "auto_control.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,6 +50,7 @@ extern USBH_HandleTypeDef hUsbHostFS;
 
 // Declaration and configurations
 static t818_drive_control_t drive_control;
+static auto_control_t auto_control;
 
 static const t818_drive_control_config_t t818_config = { .t818_host_handle =
 		&hUsbHostFS };
@@ -100,6 +102,11 @@ void MX_FREERTOS_Init(void) {
 	/* USER CODE BEGIN Init */
 	if (t818_drive_control_init(&drive_control, &t818_config,
 			USBH_HID_T818GetInstance()) != T818_DC_OK) {
+		Error_Handler();
+	}
+
+	if (auto_control_init(&auto_control,
+			&drive_control.t818_driving_commands)!=AUTO_CONTROL_OK) {
 		Error_Handler();
 	}
 
@@ -172,7 +179,8 @@ void StartUpdateStateTask(void const *argument) {
 	/* Infinite loop */
 	for (;;) {
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
-		if (t818_drive_control_step(&drive_control) != T818_DC_OK) {
+		if ((t818_drive_control_step(&drive_control) != T818_DC_OK)
+				|| (auto_control_step(&auto_control) != AUTO_CONTROL_OK)) {
 			Error_Handler();
 		}
 	}
