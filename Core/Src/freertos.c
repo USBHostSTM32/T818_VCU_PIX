@@ -55,8 +55,11 @@ extern USBH_HandleTypeDef hUsbHostFS;
 static t818_drive_control_t drive_control;
 static auto_control_t auto_control;
 uint8_t data[8];
-can_manager_t *can_manager;
+can_manager_t can_manager;
+CAN_TxHeaderTypeDef TxHeader;
+
 const can_manager_config_t can_manager_config={
+		.auto_control_tx_header=TxHeader,
 		.auto_control_tx_mailbox=CAN_TX_MAILBOX0,
 		.auto_data_feedback_rx_fifo=CAN_RX_FIFO0,
 		.hcan=&hcan1
@@ -120,7 +123,7 @@ void MX_FREERTOS_Init(void) {
 		Error_Handler();
 	}
 
-	if (can_manager_init(can_manager, &can_manager_config) != CAN_MANAGER_OK) {
+	if (can_manager_init(&can_manager, &can_manager_config) != CAN_MANAGER_OK) {
 		Error_Handler();
 	}
 
@@ -206,7 +209,7 @@ void StartUpdateStateTask(void const *argument) {
 			Error_Handler();
 		}
 
-		if (can_manager_auto_control_tx(can_manager, data) != CAN_MANAGER_OK) {
+		if (can_manager_auto_control_tx(&can_manager, data) != CAN_MANAGER_OK) {
 			Error_Handler();
 		}
 	}
