@@ -28,6 +28,8 @@
 #include "t818_drive_control.h"
 #include "auto_control.h"
 #include "can_parser.h"
+#include "can.h"
+#include "can_manager.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,6 +55,12 @@ extern USBH_HandleTypeDef hUsbHostFS;
 static t818_drive_control_t drive_control;
 static auto_control_t auto_control;
 uint8_t data[8];
+can_manager_t *can_manager;
+const can_manager_config_t can_manager_config={
+		.auto_control_tx_mailbox=CAN_TX_MAILBOX0,
+		.auto_data_feedback_rx_fifo=CAN_RX_FIFO0,
+		.hcan=&hcan1
+};
 
 static const t818_drive_control_config_t t818_config = { .t818_host_handle =
 		&hUsbHostFS };
@@ -109,6 +117,10 @@ void MX_FREERTOS_Init(void) {
 
 	if (auto_control_init(&auto_control,
 			&drive_control.t818_driving_commands)!=AUTO_CONTROL_OK) {
+		Error_Handler();
+	}
+
+	if (can_manager_init(can_manager, &can_manager_config) != CAN_MANAGER_OK) {
 		Error_Handler();
 	}
 
@@ -181,8 +193,20 @@ void StartUpdateStateTask(void const *argument) {
 	/* Infinite loop */
 	for (;;) {
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
-		if ((t818_drive_control_step(&drive_control) != T818_DC_OK)
-		|| (auto_control_step(&auto_control) != AUTO_CONTROL_OK) || (can_parser_from_auto_control_to_array(auto_control.auto_control_data,data)!=CAN_PARSER_OK)) {
+		if ((t818_drive_control_step(&drive_control) != T818_DC_OK)) {
+			Error_Handler();
+		}
+
+		if ((auto_control_step(&auto_control) != AUTO_CONTROL_OK)) {
+			Error_Handler();
+		}
+
+		if ((can_parser_from_auto_control_to_array(
+				auto_control.auto_control_data, data) != CAN_PARSER_OK)) {
+			Error_Handler();
+		}
+
+		if (can_manager_auto_control_tx(can_manager, data) != CAN_MANAGER_OK) {
 			Error_Handler();
 		}
 	}
