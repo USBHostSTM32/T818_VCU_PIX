@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "t818_drive_control.h"
 #include "auto_control.h"
+#include "can_parser.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,6 +52,7 @@ extern USBH_HandleTypeDef hUsbHostFS;
 // Declaration and configurations
 static t818_drive_control_t drive_control;
 static auto_control_t auto_control;
+uint8_t data[8];
 
 static const t818_drive_control_config_t t818_config = { .t818_host_handle =
 		&hUsbHostFS };
@@ -180,7 +182,7 @@ void StartUpdateStateTask(void const *argument) {
 	for (;;) {
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
 		if ((t818_drive_control_step(&drive_control) != T818_DC_OK)
-				|| (auto_control_step(&auto_control) != AUTO_CONTROL_OK)) {
+		|| (auto_control_step(&auto_control) != AUTO_CONTROL_OK) || (can_parser_from_auto_control_to_array(auto_control.auto_control_data,data)!=CAN_PARSER_OK)) {
 			Error_Handler();
 		}
 	}
