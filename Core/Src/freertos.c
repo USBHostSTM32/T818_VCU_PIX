@@ -55,11 +55,24 @@ extern USBH_HandleTypeDef hUsbHostFS;
 static t818_drive_control_t drive_control;
 static auto_control_t auto_control;
 uint8_t data[8];
-can_manager_t *can_manager;
-const can_manager_config_t can_manager_config={
-		.auto_control_tx_mailbox=CAN_TX_MAILBOX0,
-		.auto_data_feedback_rx_fifo=CAN_RX_FIFO0,
-		.hcan=&hcan1
+
+/* Can Manager constant static variables ------------------------------------*/
+static can_manager_t can_manager;
+static const CAN_TxHeaderTypeDef auto_control_tx_header = {
+    .StdId = 0x001,           // Identificatore standard, assegna un valore appropriato
+    .ExtId = 0x01,            // Identificatore esteso, assegna un valore appropriato
+    .IDE = CAN_ID_STD,        // Utilizzo di un ID standard
+    .RTR = CAN_RTR_DATA,      // Tipo di frame: dati
+    .DLC = 8,                 // Lunghezza dei dati: 8 byte
+    .TransmitGlobalTime = DISABLE  // Timestamp disabilitato
+};
+
+/* Inizializzazione statica di can_manager_config */
+static const can_manager_config_t can_manager_config = {
+    .hcan = &hcan1,                          // Puntatore alla handle di CAN1
+    .auto_control_tx_mailbox = CAN_TX_MAILBOX0,  // Mailbox per trasmissione
+    .auto_control_tx_header = auto_control_tx_header,  // Header per trasmissione
+    .auto_data_feedback_rx_fifo = CAN_RX_FIFO0    // FIFO per ricezione
 };
 
 static const t818_drive_control_config_t t818_config = { .t818_host_handle =
@@ -120,7 +133,7 @@ void MX_FREERTOS_Init(void) {
 		Error_Handler();
 	}
 
-	if (can_manager_init(can_manager, &can_manager_config) != CAN_MANAGER_OK) {
+	if (can_manager_init(&can_manager, &can_manager_config) != CAN_MANAGER_OK) {
 		Error_Handler();
 	}
 
@@ -206,7 +219,7 @@ void StartUpdateStateTask(void const *argument) {
 			Error_Handler();
 		}
 
-		if (can_manager_auto_control_tx(can_manager, data) != CAN_MANAGER_OK) {
+		if (can_manager_auto_control_tx(&can_manager, data) != CAN_MANAGER_OK) {
 			Error_Handler();
 		}
 	}
