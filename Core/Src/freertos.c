@@ -70,7 +70,6 @@ static const CAN_TxHeaderTypeDef auto_control_tx_header = {
 /* Inizializzazione statica di can_manager_config */
 static const can_manager_config_t can_manager_config = {
     .hcan = &hcan1,                          // Puntatore alla handle di CAN1
-    .auto_control_tx_mailbox = CAN_TX_MAILBOX0,  // Mailbox per trasmissione
     .auto_control_tx_header = auto_control_tx_header,  // Header per trasmissione
     .auto_data_feedback_rx_fifo = CAN_RX_FIFO0,    // FIFO per ricezione
 	.auto_data_feedback_rx_interrupt = CAN_IT_RX_FIFO0_MSG_PENDING
