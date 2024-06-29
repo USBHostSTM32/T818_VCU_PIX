@@ -54,26 +54,26 @@ extern USBH_HandleTypeDef hUsbHostFS;
 // Declaration and configurations
 static t818_drive_control_t drive_control;
 static auto_control_t auto_control;
+CAN_RxHeaderTypeDef RxHeader;
+
 uint8_t data[8];
+uint8_t data_feedback[8];
 
 /* Can Manager constant static variables ------------------------------------*/
 static can_manager_t can_manager;
-static const CAN_TxHeaderTypeDef auto_control_tx_header = {
-    .StdId = 0x001,           // Identificatore standard, assegna un valore appropriato
-    .ExtId = 0x01,            // Identificatore esteso, assegna un valore appropriato
-    .IDE = CAN_ID_STD,        // Utilizzo di un ID standard
-    .RTR = CAN_RTR_DATA,      // Tipo di frame: dati
-    .DLC = 8,                 // Lunghezza dei dati: 8 byte
-    .TransmitGlobalTime = DISABLE  // Timestamp disabilitato
-};
+static const CAN_TxHeaderTypeDef auto_control_tx_header = { .StdId = 0x183, // Identificatore standard, assegna un valore appropriato
+		.ExtId = 0x0,   // Identificatore esteso, assegna un valore appropriato
+		.IDE = CAN_ID_STD,        // Utilizzo di un ID standard
+		.RTR = CAN_RTR_DATA,      // Tipo di frame: dati
+		.DLC = 8,                 // Lunghezza dei dati: 8 byte
+		.TransmitGlobalTime = DISABLE  // Timestamp disabilitato
+		};
 
 /* Inizializzazione statica di can_manager_config */
-static const can_manager_config_t can_manager_config = {
-    .hcan = &hcan1,                          // Puntatore alla handle di CAN1
-    .auto_control_tx_header = auto_control_tx_header,  // Header per trasmissione
-    .auto_data_feedback_rx_fifo = CAN_RX_FIFO0,    // FIFO per ricezione
-	.auto_data_feedback_rx_interrupt = CAN_IT_RX_FIFO0_MSG_PENDING
-};
+static const can_manager_config_t can_manager_config = { .hcan = &hcan1, // Puntatore alla handle di CAN1
+		.auto_control_tx_header = auto_control_tx_header, // Header per trasmissione
+		.auto_data_feedback_rx_fifo = CAN_RX_FIFO0,    // FIFO per ricezione
+		.auto_data_feedback_rx_interrupt = CAN_IT_RX_FIFO0_MSG_PENDING };
 
 static const t818_drive_control_config_t t818_config = { .t818_host_handle =
 		&hUsbHostFS };
@@ -90,6 +90,10 @@ void USBH_HID_EventCallback(USBH_HandleTypeDef *phost) {
 			!= USBH_OK) {
 		Error_Handler();
 	}
+}
+
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
+	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, data_feedback);
 }
 /* USER CODE END FunctionPrototypes */
 
@@ -207,6 +211,11 @@ void StartUpdateStateTask(void const *argument) {
 	for (;;) {
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
 		if ((t818_drive_control_step(&drive_control) != T818_DC_OK)) {
+			Error_Handler();
+		}
+
+		if ((can_parser_from_array_to_auto_control_feedback(data_feedback,
+				&auto_control.auto_data_feedback) != CAN_PARSER_OK)) {
 			Error_Handler();
 		}
 
