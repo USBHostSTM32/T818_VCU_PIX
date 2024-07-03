@@ -40,6 +40,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define UPDATE_STATE_PERIOD_MS                   	(20U)
+//#define USE_CAN
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -87,10 +88,11 @@ void USBH_HID_EventCallback(USBH_HandleTypeDef *phost) {
 		Error_Handler();
 	}
 }
-
+#ifdef USE_CAN
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &can_manager.RxHeader, can_manager.rx_data);
 }
+#endif
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void const * argument);
@@ -209,16 +211,16 @@ void StartUpdateStateTask(void const * argument)
 		if ((t818_drive_control_step(&drive_control) != T818_DC_OK)) {
 			Error_Handler();
 		}
-
+#ifdef USE_CAN
 		if ((can_parser_from_array_to_auto_control_feedback(can_manager.rx_data,
 				&auto_control.auto_data_feedback) != CAN_PARSER_OK)) {
 			Error_Handler();
 		}
-
+#endif
 		if ((auto_control_step(&auto_control) != AUTO_CONTROL_OK)) {
 			Error_Handler();
 		}
-
+#ifdef USE_CAN
 		if ((can_parser_from_auto_control_to_array(
 				auto_control.auto_control_data, can_manager.tx_data) != CAN_PARSER_OK)) {
 			Error_Handler();
@@ -227,6 +229,7 @@ void StartUpdateStateTask(void const * argument)
 		if (can_manager_auto_control_tx(&can_manager, can_manager.tx_data) != CAN_MANAGER_OK) {
 			Error_Handler();
 		}
+#endif
 	}
   /* USER CODE END StartUpdateStateTask */
 }
