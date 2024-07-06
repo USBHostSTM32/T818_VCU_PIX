@@ -31,6 +31,7 @@
 #include "can.h"
 #include "can_manager.h"
 #include "t818_ff_manager.h"
+#include "rotation_manager.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -56,6 +57,8 @@ extern USBH_HandleTypeDef hUsbHostFS;
 // Declaration and configurations
 static t818_drive_control_t drive_control;
 static auto_control_t auto_control;
+static pi_t pi;
+static rotation_manager_t rotation_manager;
 /* Can Manager constant static variables ------------------------------------*/
 static can_manager_t can_manager;
 static const CAN_TxHeaderTypeDef auto_control_tx_header = { .StdId = 0x183, // Identificatore standard, assegna un valore appropriato
@@ -90,7 +93,8 @@ void USBH_HID_EventCallback(USBH_HandleTypeDef *phost) {
 }
 #ifdef USE_CAN
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
-	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &can_manager.RxHeader, can_manager.rx_data);
+	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &can_manager.RxHeader,
+			can_manager.rx_data);
 }
 #endif
 /* USER CODE END FunctionPrototypes */
@@ -139,6 +143,14 @@ void MX_FREERTOS_Init(void) {
 		Error_Handler();
 	}
 
+	if ((init_pi(&pi, PI_KP, PI_KI,PI_KD, PI_MAX_U, PI_MIN_U) != PI_OK)) {
+		Error_Handler();
+	}
+
+	if (rotation_manager_init(&rotation_manager, &pi,
+			&hUsbHostFS)!=ROTATION_MANAGER_OK) {
+		Error_Handler();
+	}
 	/* USER CODE END Init */
 
 	/* USER CODE BEGIN RTOS_MUTEX */
@@ -191,7 +203,6 @@ void StartDefaultTask(void const *argument) {
 	/* USER CODE END StartDefaultTask */
 }
 
-
 /* USER CODE BEGIN Header_StartUpdateStateTask */
 /**
  * @brief Function implementing the updateStateTask thread.
@@ -213,22 +224,30 @@ void StartUpdateStateTask(void const *argument) {
 			Error_Handler();
 		}
 #ifdef USE_CAN
-		if ((can_parser_from_array_to_auto_control_feedback(can_manager.rx_data,
+	/*	if ((can_parser_from_array_to_auto_control_feedback(can_manager.rx_data,
 				&auto_control.auto_data_feedback) != CAN_PARSER_OK)) {
 			Error_Handler();
-		}
+		}*/
 #endif
+		if (drive_control.state == READING_WHEEL) {
+			rotation_manager_update(&rotation_manager,
+					auto_control.auto_data_feedback.steer,
+					auto_control.auto_control_data.steering);
+		}
+
 		if ((auto_control_step(&auto_control) != AUTO_CONTROL_OK)) {
 			Error_Handler();
 		}
 
 #ifdef USE_CAN
 		if ((can_parser_from_auto_control_to_array(
-				auto_control.auto_control_data, can_manager.tx_data) != CAN_PARSER_OK)) {
+				auto_control.auto_control_data, can_manager.tx_data)
+				!= CAN_PARSER_OK)) {
 			Error_Handler();
 		}
 
-		if (can_manager_auto_control_tx(&can_manager, can_manager.tx_data) != CAN_MANAGER_OK) {
+		if (can_manager_auto_control_tx(&can_manager,
+				can_manager.tx_data) != CAN_MANAGER_OK) {
 			Error_Handler();
 		}
 #endif
