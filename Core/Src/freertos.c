@@ -57,7 +57,7 @@ extern USBH_HandleTypeDef hUsbHostFS;
 // Declaration and configurations
 static t818_drive_control_t drive_control;
 static auto_control_t auto_control;
-static pi_t pi;
+static pid_t pid;
 static rotation_manager_t rotation_manager;
 /* Can Manager constant static variables ------------------------------------*/
 static can_manager_t can_manager;
@@ -143,11 +143,11 @@ void MX_FREERTOS_Init(void) {
 		Error_Handler();
 	}
 
-	if ((init_pi(&pi, PI_KP, PI_KI,PI_KD, PI_MAX_U, PI_MIN_U) != PI_OK)) {
+	if ((pid_init(&pid, PID_KP, PID_KI, PID_KD, PID_MAX_U, PID_MIN_U) != PID_OK)) {
 		Error_Handler();
 	}
 
-	if (rotation_manager_init(&rotation_manager, &pi,
+	if (rotation_manager_init(&rotation_manager, &pid,
 			&hUsbHostFS)!=ROTATION_MANAGER_OK) {
 		Error_Handler();
 	}
