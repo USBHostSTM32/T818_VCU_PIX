@@ -42,7 +42,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define UPDATE_STATE_PERIOD_MS                   	(20U)
-//#define USE_CAN
+#define USE_CAN
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -60,8 +60,6 @@ static auto_control_t auto_control;
 static pi_t pi;
 static rotation_manager_t rotation_manager;
 /* Can Manager constant static variables ------------------------------------*/
-
-#ifdef USE_CAN
 static can_manager_t can_manager;
 static const CAN_TxHeaderTypeDef auto_control_tx_header = { .StdId = 0x183, // Identificatore standard, assegna un valore appropriato
 		.ExtId = 0x0,   // Identificatore esteso, assegna un valore appropriato
@@ -76,7 +74,6 @@ static const can_manager_config_t can_manager_config = { .hcan = &hcan1, // Punt
 		.auto_control_tx_header = auto_control_tx_header, // Header per trasmissione
 		.auto_data_feedback_rx_fifo = CAN_RX_FIFO0,    // FIFO per ricezione
 		.auto_data_feedback_rx_interrupt = CAN_IT_RX_FIFO0_MSG_PENDING };
-#endif
 
 static const t818_drive_control_config_t t818_config = { .t818_host_handle =
 		&hUsbHostFS };
@@ -141,7 +138,7 @@ void MX_FREERTOS_Init(void) {
 			&drive_control.t818_driving_commands)!=AUTO_CONTROL_OK) {
 		Error_Handler();
 	}
-	#ifdef USE_CAN
+
 	if (can_manager_init(&can_manager, &can_manager_config) != CAN_MANAGER_OK) {
 		Error_Handler();
 	}
@@ -227,10 +224,10 @@ void StartUpdateStateTask(void const *argument) {
 			Error_Handler();
 		}
 #ifdef USE_CAN
-	/*	if ((can_parser_from_array_to_auto_control_feedback(can_manager.rx_data,
+		if ((can_parser_from_array_to_auto_control_feedback(can_manager.rx_data,
 				&auto_control.auto_data_feedback) != CAN_PARSER_OK)) {
 			Error_Handler();
-		}*/
+		}
 #endif
 		if (drive_control.state == READING_WHEEL) {
 			rotation_manager_update(&rotation_manager,
