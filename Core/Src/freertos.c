@@ -32,6 +32,7 @@
 #include "can_manager.h"
 #include "t818_ff_manager.h"
 #include "rotation_manager.h"
+#include "urb_sender.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,6 +43,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define UPDATE_STATE_PERIOD_MS                   	(20U)
+#define URB_TX_PERIOD_MS 		                  	(2U)
 #define USE_CAN
 /* USER CODE END PD */
 
@@ -55,6 +57,11 @@
 extern USBH_HandleTypeDef hUsbHostFS;
 
 // Declaration and configurations
+osMessageQId urb_queueHandle;
+uint8_t urb_queueBuffer[ 40 * sizeof( urb_interr_msg_t ) ];
+osStaticMessageQDef_t urb_queueControlBlock;
+
+
 static t818_drive_control_t drive_control;
 static auto_control_t auto_control;
 static pid_t pid;
@@ -77,14 +84,25 @@ static const can_manager_config_t can_manager_config = { .hcan = &hcan1, // Punt
 
 static const t818_drive_control_config_t t818_config = { .t818_host_handle =
 		&hUsbHostFS };
+
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
 osThreadId updateStateTaskHandle;
-uint32_t updateStateTaskBuffer[1024];
+uint32_t updateStateTaskBuffer[ 1024 ];
 osStaticThreadDef_t updateStateTaskControlBlock;
+osThreadId urbTxTaskHandle;
+uint32_t urbTxTaskBuffer[ 256 ];
+osStaticThreadDef_t urbTxTaskControlBlock;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
+static const urb_sender_config_t urb_sender_config = {
+		.phost = &hUsbHostFS
+};
+
+static urb_sender_t urb_sender;
+
+
 void USBH_HID_EventCallback(USBH_HandleTypeDef *phost) {
 	if (USBH_HID_GetT818Info(drive_control.config->t818_host_handle)
 			!= USBH_OK) {
@@ -99,15 +117,15 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
 #endif
 /* USER CODE END FunctionPrototypes */
 
-void StartDefaultTask(void const *argument);
-void StartUpdateStateTask(void const *argument);
+void StartDefaultTask(void const * argument);
+void StartUpdateStateTask(void const * argument);
+void StartUrbTxTask(void const * argument);
 
 extern void MX_USB_HOST_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /* GetIdleTaskMemory prototype (linked to static allocation support) */
-void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer,
-		StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize);
+void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize );
 
 /* USER CODE BEGIN GET_IDLE_TASK_MEMORY */
 static StaticTask_t xIdleTaskTCBBuffer;
@@ -123,12 +141,19 @@ void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer,
 /* USER CODE END GET_IDLE_TASK_MEMORY */
 
 /**
- * @brief  FreeRTOS initialization
- * @param  None
- * @retval None
- */
+  * @brief  FreeRTOS initialization
+  * @param  None
+  * @retval None
+  */
 void MX_FREERTOS_Init(void) {
-	/* USER CODE BEGIN Init */
+  /* USER CODE BEGIN Init */
+	osMessageQStaticDef(urb_queue, 40, urb_interr_msg_t, urb_queueBuffer, &urb_queueControlBlock);
+	urb_queueHandle = osMessageCreate(osMessageQ(urb_queue), NULL);
+
+	if(urb_sender_init(&urb_sender, &urb_sender_config, urb_queueHandle) != URB_SENDER_OK){
+		Error_Handler();
+	}
+
 	if (t818_drive_control_init(&drive_control, &t818_config,
 			USBH_HID_T818GetInstance()) != T818_DC_OK) {
 		Error_Handler();
@@ -147,41 +172,49 @@ void MX_FREERTOS_Init(void) {
 		Error_Handler();
 	}
 
-	if (rotation_manager_init(&rotation_manager, &pid,
-			&hUsbHostFS)!=ROTATION_MANAGER_OK) {
+	if(t818_ff_manager_init(&urb_sender) != T818_FF_MANAGER_OK){
 		Error_Handler();
 	}
-	/* USER CODE END Init */
 
-	/* USER CODE BEGIN RTOS_MUTEX */
+
+	if (rotation_manager_init(&rotation_manager, &pid, &urb_sender)!=ROTATION_MANAGER_OK) {
+		Error_Handler();
+	}
+
+  /* USER CODE END Init */
+
+  /* USER CODE BEGIN RTOS_MUTEX */
 	/* add mutexes, ... */
-	/* USER CODE END RTOS_MUTEX */
+  /* USER CODE END RTOS_MUTEX */
 
-	/* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
 	/* add semaphores, ... */
-	/* USER CODE END RTOS_SEMAPHORES */
+  /* USER CODE END RTOS_SEMAPHORES */
 
-	/* USER CODE BEGIN RTOS_TIMERS */
+  /* USER CODE BEGIN RTOS_TIMERS */
 	/* start timers, add new ones, ... */
-	/* USER CODE END RTOS_TIMERS */
+  /* USER CODE END RTOS_TIMERS */
 
-	/* USER CODE BEGIN RTOS_QUEUES */
+  /* USER CODE BEGIN RTOS_QUEUES */
 	/* add queues, ... */
-	/* USER CODE END RTOS_QUEUES */
+  /* USER CODE END RTOS_QUEUES */
 
-	/* Create the thread(s) */
-	/* definition and creation of defaultTask */
-	osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-	defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  /* Create the thread(s) */
+  /* definition and creation of defaultTask */
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
-	/* definition and creation of updateStateTask */
-	osThreadStaticDef(updateStateTask, StartUpdateStateTask, osPriorityRealtime,
-			0, 1024, updateStateTaskBuffer, &updateStateTaskControlBlock);
-	updateStateTaskHandle = osThreadCreate(osThread(updateStateTask), NULL);
+  /* definition and creation of updateStateTask */
+  osThreadStaticDef(updateStateTask, StartUpdateStateTask, osPriorityHigh, 0, 1024, updateStateTaskBuffer, &updateStateTaskControlBlock);
+  updateStateTaskHandle = osThreadCreate(osThread(updateStateTask), NULL);
 
-	/* USER CODE BEGIN RTOS_THREADS */
+  /* definition and creation of urbTxTask */
+  osThreadStaticDef(urbTxTask, StartUrbTxTask, osPriorityRealtime, 0, 256, urbTxTaskBuffer, &urbTxTaskControlBlock);
+  urbTxTaskHandle = osThreadCreate(osThread(urbTxTask), NULL);
+
+  /* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
-	/* USER CODE END RTOS_THREADS */
+  /* USER CODE END RTOS_THREADS */
 
 }
 
@@ -192,15 +225,16 @@ void MX_FREERTOS_Init(void) {
  * @retval None
  */
 /* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const *argument) {
-	/* init code for USB_HOST */
-	MX_USB_HOST_Init();
-	/* USER CODE BEGIN StartDefaultTask */
+void StartDefaultTask(void const * argument)
+{
+  /* init code for USB_HOST */
+  MX_USB_HOST_Init();
+  /* USER CODE BEGIN StartDefaultTask */
 	/* Infinite loop */
 	for (;;) {
 		osDelay(1);
 	}
-	/* USER CODE END StartDefaultTask */
+  /* USER CODE END StartDefaultTask */
 }
 
 /* USER CODE BEGIN Header_StartUpdateStateTask */
@@ -210,8 +244,9 @@ void StartDefaultTask(void const *argument) {
  * @retval None
  */
 /* USER CODE END Header_StartUpdateStateTask */
-void StartUpdateStateTask(void const *argument) {
-	/* USER CODE BEGIN StartUpdateStateTask */
+void StartUpdateStateTask(void const * argument)
+{
+  /* USER CODE BEGIN StartUpdateStateTask */
 	const TickType_t xFrequency = pdMS_TO_TICKS(UPDATE_STATE_PERIOD_MS); //TASK PERIOD
 	TickType_t xLastWakeTime;
 
@@ -252,7 +287,33 @@ void StartUpdateStateTask(void const *argument) {
 		}
 #endif
 	}
-	/* USER CODE END StartUpdateStateTask */
+  /* USER CODE END StartUpdateStateTask */
+}
+
+/* USER CODE BEGIN Header_StartUrbTxTask */
+/**
+* @brief Function implementing the urbTxTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartUrbTxTask */
+void StartUrbTxTask(void const * argument)
+{
+  /* USER CODE BEGIN StartUrbTxTask */
+	const TickType_t xFrequency = pdMS_TO_TICKS(URB_TX_PERIOD_MS); //TASK PERIOD
+	TickType_t xLastWakeTime;
+
+	// Initialize xLastWakeTime with the current time
+	xLastWakeTime = xTaskGetTickCount();
+  /* Infinite loop */
+  for(;;){
+	  vTaskDelayUntil(&xLastWakeTime, xFrequency);
+	  if(urb_sender_dequeue_msg(&urb_sender) != URB_SENDER_OK){
+		  Error_Handler();
+	  }
+
+  }
+  /* USER CODE END StartUrbTxTask */
 }
 
 /* Private application code --------------------------------------------------*/
