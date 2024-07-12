@@ -258,18 +258,18 @@ void StartUpdateStateTask(void const *argument) {
 		}
 #ifdef USE_CAN
 
-		if ((can_parser_from_array_to_auto_control_feedback(can_manager.rx_data,
+		/*if ((can_parser_from_array_to_auto_control_feedback(can_manager.rx_data,
 				&auto_control.auto_data_feedback) != CAN_PARSER_OK)) {
 			Error_Handler();
-		}
+		}*/
 #endif
 
 
-		/*if (drive_control.state == READING_WHEEL) {
+		if (drive_control.state == READING_WHEEL) {
 		 rotation_manager_update(&rotation_manager,
 		 auto_control.auto_data_feedback.steer,
 		 auto_control.auto_control_data.steering);
-		 }*/
+		 }
 
 		if ((auto_control_step(&auto_control) != AUTO_CONTROL_OK)) {
 			Error_Handler();
