@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <dbw_kernel.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -201,9 +201,25 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
+	dbw_kernel_t *dbw_kernel = dbw_kernel_get_instance();
+	HAL_CAN_AbortTxRequest(dbw_kernel->can_manager.config->hcan, dbw_kernel->can_manager.auto_control_tx_mailbox);
+  //__disable_irq();
+  uint8_t can_data[8] = {0x00U};
+  auto_control_data_t last_cmd = dbw_kernel->auto_control.auto_control_data;
+  float new_speed = 0.0f;
+  float new_braking = 1024.0f;
   while (1)
   {
+	  new_speed = calculate_new_smoothed_value((float)last_cmd.speed, 0.0f, 1.0f, 250.0f);
+	  new_braking = calculate_new_smoothed_value((float)last_cmd.braking, 1024.0f, 400.0f, 1.0f);
+	  dbw_kernel->can_manager.n_tries = 0U;
+
+
+	  last_cmd.speed = (uint16_t) new_speed;
+	  last_cmd.braking = (uint16_t) new_braking;
+	  can_parser_from_auto_control_to_array(last_cmd, can_data);
+	  can_manager_auto_control_tx(&dbw_kernel->can_manager, can_data);
+	  HAL_Delay(20);
   }
   /* USER CODE END Error_Handler_Debug */
 }

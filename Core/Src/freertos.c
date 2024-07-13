@@ -25,14 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "t818_drive_control.h"
-#include "auto_control.h"
-#include "can_parser.h"
-#include "can.h"
-#include "can_manager.h"
-#include "t818_ff_manager.h"
-#include "rotation_manager.h"
-#include "urb_sender.h"
+#include <dbw_kernel.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,9 +35,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define UPDATE_STATE_PERIOD_MS                   	(20U)
-#define URB_TX_PERIOD_MS 		                  	(2U)
-#define USE_CAN
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -54,35 +44,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-extern USBH_HandleTypeDef hUsbHostFS;
-
 // Declaration and configurations
-osMessageQId urb_queueHandle;
-uint8_t urb_queueBuffer[40 * sizeof(urb_interr_msg_t)];
-osStaticMessageQDef_t urb_queueControlBlock;
-
-static t818_drive_control_t drive_control;
-static auto_control_t auto_control;
-static pid_t pid;
-static rotation_manager_t rotation_manager;
-/* Can Manager constant static variables ------------------------------------*/
-static can_manager_t can_manager;
-static const CAN_TxHeaderTypeDef auto_control_tx_header = { .StdId = 0x183, // Identificatore standard, assegna un valore appropriato
-		.ExtId = 0x0,   // Identificatore esteso, assegna un valore appropriato
-		.IDE = CAN_ID_STD,        // Utilizzo di un ID standard
-		.RTR = CAN_RTR_DATA,      // Tipo di frame: dati
-		.DLC = 8,                 // Lunghezza dei dati: 8 byte
-		.TransmitGlobalTime = DISABLE  // Timestamp disabilitato
-		};
-
-/* Inizializzazione statica di can_manager_config */
-static const can_manager_config_t can_manager_config = { .hcan = &hcan1, // Puntatore alla handle di CAN1
-		.auto_control_tx_header = auto_control_tx_header, // Header per trasmissione
-		.auto_data_feedback_rx_fifo = CAN_RX_FIFO0,    // FIFO per ricezione
-		.auto_data_feedback_rx_interrupt = CAN_IT_RX_FIFO0_MSG_PENDING };
-
-static const t818_drive_control_config_t t818_config = { .t818_host_handle =
-		&hUsbHostFS };
 
 /* USER CODE END Variables */
 osThreadId defaultTaskHandle;
@@ -95,20 +57,16 @@ osStaticThreadDef_t urbTxTaskControlBlock;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-static const urb_sender_config_t urb_sender_config = { .phost = &hUsbHostFS };
-
-static urb_sender_t urb_sender;
-
 void USBH_HID_EventCallback(USBH_HandleTypeDef *phost) {
-	if (USBH_HID_GetT818Info(drive_control.config->t818_host_handle)
-			!= USBH_OK) {
+	dbw_kernel_t *dwb_kernel = dbw_kernel_get_instance();
+	if (USBH_HID_GetT818Info(dwb_kernel->drive_control.config->t818_host_handle)!= USBH_OK) {
 		Error_Handler();
 	}
 }
 #ifdef USE_CAN
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
-	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &can_manager.RxHeader,
-			can_manager.rx_data);
+	dbw_kernel_t *dwb_kernel = dbw_kernel_get_instance();
+	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &dwb_kernel->can_manager.RxHeader, dwb_kernel->can_manager.rx_data);
 }
 #endif
 /* USER CODE END FunctionPrototypes */
@@ -143,40 +101,7 @@ void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer,
   */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
-
-	osMessageQStaticDef(urb_queue, 40, urb_interr_msg_t, urb_queueBuffer,
-			&urb_queueControlBlock);
-	urb_queueHandle = osMessageCreate(osMessageQ(urb_queue), NULL);
-
-	if (urb_sender_init(&urb_sender, &urb_sender_config,
-			urb_queueHandle) != URB_SENDER_OK) {
-		Error_Handler();
-	}
-
-	if (t818_drive_control_init(&drive_control, &t818_config,
-			USBH_HID_T818GetInstance()) != T818_DC_OK) {
-		Error_Handler();
-	}
-
-	if (auto_control_init(&auto_control,
-			&drive_control.t818_driving_commands)!=AUTO_CONTROL_OK) {
-		Error_Handler();
-	}
-
-	if (can_manager_init(&can_manager, &can_manager_config) != CAN_MANAGER_OK) {
-		Error_Handler();
-	}
-
-	if ((pid_init(&pid, PID_KP, PID_KI, PID_KD, PID_MAX_U, PID_MIN_U) != PID_OK)) {
-		Error_Handler();
-	}
-
-	if (t818_ff_manager_init(&urb_sender) != T818_FF_MANAGER_OK) {
-		Error_Handler();
-	}
-
-	if (rotation_manager_init(&rotation_manager, &pid,
-			&urb_sender)!=ROTATION_MANAGER_OK) {
+	if(dbw_kernel_init() != DBW_OK){
 		Error_Handler();
 	}
   /* USER CODE END Init */
@@ -245,6 +170,7 @@ void StartDefaultTask(void const * argument)
 void StartUpdateStateTask(void const * argument)
 {
   /* USER CODE BEGIN StartUpdateStateTask */
+	dbw_kernel_t *dbw_kernel = dbw_kernel_get_instance();
 	const TickType_t xFrequency = pdMS_TO_TICKS(UPDATE_STATE_PERIOD_MS); //TASK PERIOD
 	TickType_t xLastWakeTime;
 
@@ -253,7 +179,7 @@ void StartUpdateStateTask(void const * argument)
 	/* Infinite loop */
 	for (;;) {
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
-		if ((t818_drive_control_step(&drive_control) != T818_DC_OK)) {
+		if ((t818_drive_control_step(&dbw_kernel->drive_control) != T818_DC_OK)) {
 			Error_Handler();
 		}
 #ifdef USE_CAN
@@ -265,25 +191,25 @@ void StartUpdateStateTask(void const * argument)
 #endif
 
 
-		if (drive_control.state == READING_WHEEL) {
-		 rotation_manager_update(&rotation_manager,
-		 auto_control.auto_data_feedback.steer,
-		 auto_control.auto_control_data.steering);
+		if (dbw_kernel->drive_control.state == READING_WHEEL) {
+		rotation_manager_update(&dbw_kernel->rotation_manager,
+		dbw_kernel->auto_control.auto_data_feedback.steer,
+		dbw_kernel->auto_control.auto_control_data.steering);
 		 }
 
-		if ((auto_control_step(&auto_control) != AUTO_CONTROL_OK)) {
+		if ((auto_control_step(&dbw_kernel->auto_control) != AUTO_CONTROL_OK)) {
 			Error_Handler();
 		}
 
 #ifdef USE_CAN
 		if ((can_parser_from_auto_control_to_array(
-				auto_control.auto_control_data, can_manager.tx_data)
+				dbw_kernel->auto_control.auto_control_data, dbw_kernel->can_manager.tx_data)
 				!= CAN_PARSER_OK)) {
 			Error_Handler();
 		}
 
-		if (can_manager_auto_control_tx(&can_manager,
-				can_manager.tx_data) != CAN_MANAGER_OK) {
+		if (can_manager_auto_control_tx(&dbw_kernel->can_manager,
+				dbw_kernel->can_manager.tx_data) != CAN_MANAGER_OK) {
 			Error_Handler();
 		}
 #endif
@@ -301,6 +227,7 @@ void StartUpdateStateTask(void const * argument)
 void StartUrbTxTask(void const * argument)
 {
   /* USER CODE BEGIN StartUrbTxTask */
+	dbw_kernel_t *dbw_kernel = dbw_kernel_get_instance();
 	const TickType_t xFrequency = pdMS_TO_TICKS(URB_TX_PERIOD_MS); //TASK PERIOD
 	TickType_t xLastWakeTime;
 
@@ -309,7 +236,7 @@ void StartUrbTxTask(void const * argument)
 	/* Infinite loop */
 	for (;;) {
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
-		if (urb_sender_dequeue_msg(&urb_sender) != URB_SENDER_OK) {
+		if (urb_sender_dequeue_msg(&dbw_kernel->urb_sender) != URB_SENDER_OK) {
 			Error_Handler();
 		}
 
