@@ -210,8 +210,8 @@ void Error_Handler(void)
   float new_braking = 1024.0f;
   while (1)
   {
-	  new_speed = calculate_new_smoothed_value((float)last_cmd.speed, 0.0f, 1.0f, 250.0f);
-	  new_braking = calculate_new_smoothed_value((float)last_cmd.braking, 1024.0f, 400.0f, 1.0f);
+	  new_speed = calculate_new_smoothed_value((float)last_cmd.speed, 0.0f, 1.0f, 25.0f);
+	  new_braking = calculate_new_smoothed_value((float)last_cmd.braking, 1024.0f, 40.0f, 1.0f);
 	  dbw_kernel->can_manager.n_tries = 0U;
 
 

@@ -193,7 +193,7 @@ void StartUpdateStateTask(void const * argument)
 
 		if (dbw_kernel->drive_control.state == READING_WHEEL) {
 		rotation_manager_update(&dbw_kernel->rotation_manager,
-		dbw_kernel->auto_control.auto_data_feedback.steer,
+		dbw_kernel->auto_control.auto_data_feedback->steer,
 		dbw_kernel->auto_control.auto_control_data.steering);
 		 }
 
