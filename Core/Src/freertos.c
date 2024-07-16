@@ -178,24 +178,19 @@ void StartUpdateStateTask(void const * argument)
 	xLastWakeTime = xTaskGetTickCount();
 	/* Infinite loop */
 	for (;;) {
-		vTaskDelayUntil(&xLastWakeTime, xFrequency);
-		if ((t818_drive_control_step(&dbw_kernel->drive_control) != T818_DC_OK)) {
-			Error_Handler();
-		}
 #ifdef USE_CAN
 
-		/*if ((can_parser_from_array_to_auto_control_feedback(can_manager.rx_data,
-				&auto_control.auto_data_feedback) != CAN_PARSER_OK)) {
+		if ((can_parser_from_array_to_auto_control_feedback(dbw_kernel->can_manager.rx_data,
+				&dbw_kernel->auto_control.auto_data_feedback) != CAN_PARSER_OK)) {
 			Error_Handler();
-		}*/
+		}
 #endif
 
+		vTaskDelayUntil(&xLastWakeTime, xFrequency);
+		if ((t818_drive_control_step(&dbw_kernel->drive_control,&dbw_kernel->urb_sender,&dbw_kernel->rotation_manager,dbw_kernel->auto_data_feedback.steer) != T818_DC_OK)) {
+			Error_Handler();
+		}
 
-		if (dbw_kernel->drive_control.state == READING_WHEEL) {
-		rotation_manager_update(&dbw_kernel->rotation_manager,
-		dbw_kernel->auto_control.auto_data_feedback->steer,
-		dbw_kernel->auto_control.auto_control_data.steering);
-		 }
 
 		if ((auto_control_step(&dbw_kernel->auto_control) != AUTO_CONTROL_OK)) {
 			Error_Handler();
