@@ -172,41 +172,16 @@ void StartDefaultTask(void const * argument)
 void StartUpdateStateTask(void const * argument)
 {
   /* USER CODE BEGIN StartUpdateStateTask */
-	dbw_kernel_t *dbw_kernel = dbw_kernel_get_instance();
 	const TickType_t xFrequency = pdMS_TO_TICKS(UPDATE_STATE_PERIOD_MS); //TASK PERIOD
 	TickType_t xLastWakeTime;
-
 	// Initialize xLastWakeTime with the current time
 	xLastWakeTime = xTaskGetTickCount();
 	/* Infinite loop */
 	for (;;) {
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
-#ifdef USE_CAN
-		if ((can_parser_from_array_to_auto_control_feedback(dbw_kernel->can_manager.rx_data,
-				dbw_kernel->auto_control.auto_data_feedback) != CAN_PARSER_OK)) {
-			Error_Handler();
-		}
-#endif
-		if ((t818_drive_control_step(&dbw_kernel->drive_control,&dbw_kernel->urb_sender,&dbw_kernel->rotation_manager,dbw_kernel->auto_data_feedback.steer) != T818_DC_OK)) {
-			Error_Handler();
-		}
-
-		if ((auto_control_step(&dbw_kernel->auto_control) != AUTO_CONTROL_OK)) {
-			Error_Handler();
-		}
-
-#ifdef USE_CAN
-		if ((can_parser_from_auto_control_to_array(
-				dbw_kernel->auto_control.auto_control_data, dbw_kernel->can_manager.tx_data)
-				!= CAN_PARSER_OK)) {
-			Error_Handler();
-		}
-
-		if (can_manager_auto_control_tx(&dbw_kernel->can_manager,
-				dbw_kernel->can_manager.tx_data) != CAN_MANAGER_OK) {
-			Error_Handler();
-		}
-#endif
+        if (dbw_kernel_update_state_step() != DBW_OK) {
+            Error_Handler();
+        }
 	}
   /* USER CODE END StartUpdateStateTask */
 }
@@ -218,24 +193,31 @@ void StartUpdateStateTask(void const * argument)
  * @retval None
  */
 /* USER CODE END Header_StartUrbTxTask */
+/* USER CODE BEGIN Header_StartUrbTxTask */
+/**
+ * @brief Function implementing the urbTxTask thread.
+ * @param argument: Not used
+ * @retval None
+ */
+/* USER CODE END Header_StartUrbTxTask */
 void StartUrbTxTask(void const * argument)
 {
   /* USER CODE BEGIN StartUrbTxTask */
-	dbw_kernel_t *dbw_kernel = dbw_kernel_get_instance();
-	const TickType_t xFrequency = pdMS_TO_TICKS(URB_TX_PERIOD_MS); //TASK PERIOD
-	TickType_t xLastWakeTime;
+    const TickType_t xFrequency = pdMS_TO_TICKS(URB_TX_PERIOD_MS); //TASK PERIOD
+    TickType_t xLastWakeTime;
 
-	// Initialize xLastWakeTime with the current time
-	xLastWakeTime = xTaskGetTickCount();
-	/* Infinite loop */
-	for (;;) {
-		vTaskDelayUntil(&xLastWakeTime, xFrequency);
-		if (urb_sender_dequeue_msg(&dbw_kernel->urb_sender) != URB_SENDER_OK) {
-			Error_Handler();
-		}
-	}
+    // Initialize xLastWakeTime with the current time
+    xLastWakeTime = xTaskGetTickCount();
+    /* Infinite loop */
+    for (;;) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        if (dbw_kernel_urb_tx_step() != DBW_OK) {
+            Error_Handler();
+        }
+    }
   /* USER CODE END StartUrbTxTask */
 }
+
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
