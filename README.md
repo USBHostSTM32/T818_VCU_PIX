@@ -13,7 +13,7 @@ This repository contains the firmware for the T818_VCU_PIX system, developed for
 
 ### CommonDrivers
 
-The `CommonDrivers` directory contains various drivers and utilities used across the system. For detailed information on the modules within this directory, please refer to the [CommonDrivers repository](https://github.com/USBHostSTM32/CommonDrivers/tree/ed16187cb28592cdae1f1a6aea7bc15de712704b).
+The `CommonDrivers` directory contains various drivers and utilities used across the system. For detailed information on the modules within this directory, please refer to the [CommonDrivers repository](https://github.com/USBHostSTM32/CommonDrivers/tree/main).
 
 ### Core
 
