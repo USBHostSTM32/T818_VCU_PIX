@@ -106,7 +106,6 @@ void MX_FREERTOS_Init(void) {
 		Error_Handler();
 	}
 
-	 HAL_TIM_Base_Start(&htim13);
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -184,7 +183,7 @@ void StartUpdateStateTask(void const * argument)
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
 #ifdef USE_CAN
 		if ((can_parser_from_array_to_auto_control_feedback(dbw_kernel->can_manager.rx_data,
-				&dbw_kernel->auto_control.auto_data_feedback) != CAN_PARSER_OK)) {
+				dbw_kernel->auto_control.auto_data_feedback) != CAN_PARSER_OK)) {
 			Error_Handler();
 		}
 #endif
@@ -208,7 +207,6 @@ void StartUpdateStateTask(void const * argument)
 			Error_Handler();
 		}
 #endif
-		timer_val = __HAL_TIM_GET_COUNTER(&htim13);
 	}
   /* USER CODE END StartUpdateStateTask */
 }
