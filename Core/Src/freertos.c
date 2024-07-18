@@ -62,6 +62,7 @@ void USBH_HID_EventCallback(USBH_HandleTypeDef *phost) {
 	if (USBH_HID_GetT818Info(dwb_kernel->drive_control.config->t818_host_handle)!= USBH_OK) {
 		Error_Handler();
 	}
+
 }
 #ifdef USE_CAN
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
@@ -104,6 +105,8 @@ void MX_FREERTOS_Init(void) {
 	if(dbw_kernel_init() != DBW_OK){
 		Error_Handler();
 	}
+
+	 HAL_TIM_Base_Start(&htim13);
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -178,19 +181,16 @@ void StartUpdateStateTask(void const * argument)
 	xLastWakeTime = xTaskGetTickCount();
 	/* Infinite loop */
 	for (;;) {
+		vTaskDelayUntil(&xLastWakeTime, xFrequency);
 #ifdef USE_CAN
-
 		if ((can_parser_from_array_to_auto_control_feedback(dbw_kernel->can_manager.rx_data,
 				&dbw_kernel->auto_control.auto_data_feedback) != CAN_PARSER_OK)) {
 			Error_Handler();
 		}
 #endif
-
-		vTaskDelayUntil(&xLastWakeTime, xFrequency);
 		if ((t818_drive_control_step(&dbw_kernel->drive_control,&dbw_kernel->urb_sender,&dbw_kernel->rotation_manager,dbw_kernel->auto_data_feedback.steer) != T818_DC_OK)) {
 			Error_Handler();
 		}
-
 
 		if ((auto_control_step(&dbw_kernel->auto_control) != AUTO_CONTROL_OK)) {
 			Error_Handler();
@@ -208,6 +208,7 @@ void StartUpdateStateTask(void const * argument)
 			Error_Handler();
 		}
 #endif
+		timer_val = __HAL_TIM_GET_COUNTER(&htim13);
 	}
   /* USER CODE END StartUpdateStateTask */
 }
@@ -234,7 +235,6 @@ void StartUrbTxTask(void const * argument)
 		if (urb_sender_dequeue_msg(&dbw_kernel->urb_sender) != URB_SENDER_OK) {
 			Error_Handler();
 		}
-
 	}
   /* USER CODE END StartUrbTxTask */
 }

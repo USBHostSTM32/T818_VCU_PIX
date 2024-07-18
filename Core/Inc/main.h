@@ -57,8 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define OSC_Pin GPIO_PIN_3
-#define OSC_GPIO_Port GPIOA
+#define osc_Pin GPIO_PIN_10
+#define osc_GPIO_Port GPIOC
 
 /* USER CODE BEGIN Private defines */
 void print(char *text);
